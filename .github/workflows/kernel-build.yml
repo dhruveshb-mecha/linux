@@ -68,5 +68,5 @@ jobs:
         with:
           name: kernel-rpm
           path: |
-            ~/rpmbuild/RPMS/aarch64/*.rpm
-            ~/rpmbuild/SRPMS/*.rpm
+            rpmbuild/RPMS/**/*.rpm
+            rpmbuild/SRPMS/**/*.rpm
