@@ -35,7 +35,11 @@ jobs:
             findutils \
             hostname \
             tar \
-            xz
+            xz \
+            python3 \
+            perl \
+            openssl \
+            dwarves
 
       - name: Clone mwifiex driver
         run: |
