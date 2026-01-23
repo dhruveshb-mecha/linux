@@ -9,11 +9,15 @@ on:
 
 jobs:
   build:
-    # Use a GitHub-hosted arm64 runner as requested
+    # Use a GitHub-hosted arm64 runner 
     runs-on: ubuntu-24.04-arm
     
     container:
       image: fedora:43
+
+    # Grant permissions for release creation
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -70,3 +74,18 @@ jobs:
           path: |
             rpmbuild/RPMS/**/*.rpm
             rpmbuild/SRPMS/**/*.rpm
+
+      - name: Create or Update GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: kernel-latest
+          name: Latest Kernel Build
+          body: |
+            This release contains the latest kernel RPMs built from the main development branches.
+            Built from commit: ${{ github.sha }}
+          files: |
+            rpmbuild/RPMS/**/*.rpm
+            rpmbuild/SRPMS/**/*.rpm
+          generate_release_notes: true
+          make_latest: true
