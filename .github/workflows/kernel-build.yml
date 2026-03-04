@@ -1,23 +1,25 @@
-name: Build Kernel RPM
+name: Build and Release Kernel
 
 on:
   push:
-    branches: [ "main", "imx/lf-6.12.20", "pre-release" ]
+    branches: [ "main", "imx/lf-6.12.20", "pre-release*" ]
   pull_request:
-    branches: [ "main", "imx/lf-6.12.20", "pre-release" ]
+    branches: [ "main", "imx/lf-6.12.20", "pre-release*" ]
   workflow_dispatch:
 
 jobs:
   build:
-    
     runs-on: ubuntu-24.04-arm
     
+    permissions:
+      contents: write
+
     container:
       image: fedora:43
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install dependencies
         run: |
@@ -39,7 +41,15 @@ jobs:
             python3 \
             perl \
             openssl \
-            dwarves
+            dwarves \
+            dpkg-dev \
+            fakeroot \
+            gh
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
 
       - name: Clone mwifiex driver
         run: |
@@ -52,7 +62,6 @@ jobs:
       - name: Configure Kernel
         run: |
           cp arch/arm64/configs/mecha_v8_defconfig .config
-          
 
       - name: Build Kernel
         run: |
@@ -61,12 +70,45 @@ jobs:
       - name: Packaging as RPM
         run: |
           # Packaging the build into an RPM package
+          # Ensure uncompressed kernel image is used
           make KBUILD_IMAGE=arch/arm64/boot/Image binrpm-pkg -j$(nproc)
 
-      - name: Upload RPM Artifacts
+      - name: Packaging as DEB
+        run: |
+          # Packaging the build into a Debian package
+          # Ensure uncompressed kernel image is used
+          make KBUILD_IMAGE=arch/arm64/boot/Image bindeb-pkg -j$(nproc)
+
+      - name: Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-rpm
+          name: kernel-packages
           path: |
             rpmbuild/RPMS/**/*.rpm
             rpmbuild/SRPMS/**/*.rpm
+            ../*.deb
+            ../*.changes
+            ../*.buildinfo
+
+      - name: Create/Update Rolling Release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          # Delete existing tag and release if they exist
+          gh release delete kernel-latest --yes || true
+          git tag -d kernel-latest || true
+          git push origin :refs/tags/kernel-latest || true
+          
+          # Create a new tag and release
+          git tag kernel-latest
+          git push origin kernel-latest
+          
+          gh release create kernel-latest \
+            --title "Latest Kernel Build" \
+            --notes "Automated build from branch: ${{ github.ref_name }} (commit: ${{ github.sha }})" \
+            --prerelease \
+            ./rpmbuild/RPMS/**/*.rpm \
+            ../*.deb
+
+
