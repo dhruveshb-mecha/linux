@@ -1,4 +1,4 @@
-name: Build and Release Kernel (RPM)
+name: Build and Release Kernel (DEB)
 
 on:
   push:
@@ -8,14 +8,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-rpm:
+  build-deb:
     runs-on: ubuntu-24.04-arm
     
     permissions:
       contents: write
-
-    container:
-      image: fedora:43
 
     steps:
       - name: Checkout code
@@ -23,26 +20,20 @@ jobs:
 
       - name: Install dependencies
         run: |
-          dnf install -y \
-            gcc \
-            make \
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bc \
             bison \
             flex \
-            openssl-devel \
-            elfutils-libelf-devel \
-            bc \
+            libssl-dev \
+            libelf-dev \
+            kmod \
+            cpio \
             rsync \
-            rpm-build \
-            git \
-            findutils \
-            hostname \
-            tar \
-            xz \
-            python3 \
-            perl \
-            openssl \
-            dwarves \
-            gh
+            fakeroot \
+            gh \
+            debhelper
 
       - name: Configure Git
         run: |
@@ -65,31 +56,35 @@ jobs:
         run: |
           make -j$(nproc)
 
-      - name: Packaging as RPM
+      - name: Packaging as DEB
         run: |
-          # Packaging the build into an RPM package
+          # Packaging the build into a Debian package
           # Ensure uncompressed kernel image is used
-          make KBUILD_IMAGE=arch/arm64/boot/Image binrpm-pkg -j$(nproc)
+          # Use -d to skip build dependency checks if needed, but we installed them.
+          # KDEB_CHANGELOG_DIST ensures a valid distribution in changelog.
+          make KBUILD_IMAGE=arch/arm64/boot/Image KDEB_CHANGELOG_DIST=unstable bindeb-pkg -j$(nproc)
 
       - name: Consolidate Artifacts
         if: always()
         run: |
           mkdir -p dist
-          find rpmbuild/RPMS -name "*.rpm" -exec cp {} dist/ \;
-          find rpmbuild/SRPMS -name "*.rpm" -exec cp {} dist/ \;
+          # Debian packages are generated in the parent directory
+          mv ../*.deb dist/ || true
+          mv ../*.changes dist/ || true
+          mv ../*.buildinfo dist/ || true
 
-      - name: Upload RPM Artifacts
+      - name: Upload DEB Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: kernel-packages-rpm
-          path: ./dist/*.rpm
+          name: kernel-packages-deb
+          path: ./dist/*
 
       - name: Create/Update Rolling Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Ensure the release exists first
+          # Ensure the release exists first (in case this runs before RPM or RPM fails)
           gh release create kernel-latest \
             --title "Latest Kernel Build" \
             --notes "Automated rolling release for latest kernel builds." \
@@ -101,4 +96,4 @@ jobs:
           git push -f origin kernel-latest
           
           # Upload assets to the existing release
-          gh release upload kernel-latest ./dist/*.rpm --clobber
+          gh release upload kernel-latest ./dist/* --clobber
