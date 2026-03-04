@@ -48,7 +48,7 @@ jobs:
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory '*'
 
       - name: Clone mwifiex driver
         run: |
@@ -90,6 +90,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Robust git config within the container
+          git config --global --add safe.directory '*'
+          
           # Ensure the release exists first
           gh release create kernel-rpm-latest \
             --title "Latest Kernel RPM Build" \
