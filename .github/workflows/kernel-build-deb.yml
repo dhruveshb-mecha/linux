@@ -84,16 +84,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Ensure the release exists first (in case this runs before RPM or RPM fails)
-          gh release create kernel-latest \
-            --title "Latest Kernel Build" \
-            --notes "Automated rolling release for latest kernel builds." \
+          # Ensure the release exists first
+          gh release create kernel-deb-latest \
+            --title "Latest Kernel DEB Build" \
+            --notes "Automated rolling release for latest kernel DEB builds." \
             --prerelease \
             || true
           
           # Update the tag to handle rolling release
-          git tag -f kernel-latest
-          git push -f origin kernel-latest
+          git tag -f kernel-deb-latest
+          git push -f origin kernel-deb-latest
           
           # Upload assets to the existing release
-          gh release upload kernel-latest ./dist/* --clobber
+          gh release upload kernel-deb-latest ./dist/* --clobber

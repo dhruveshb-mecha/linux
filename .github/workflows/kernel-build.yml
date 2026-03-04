@@ -48,6 +48,7 @@ jobs:
         run: |
           git config --global user.email "action@github.com"
           git config --global user.name "GitHub Action"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Clone mwifiex driver
         run: |
@@ -90,15 +91,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Ensure the release exists first
-          gh release create kernel-latest \
-            --title "Latest Kernel Build" \
-            --notes "Automated rolling release for latest kernel builds." \
+          gh release create kernel-rpm-latest \
+            --title "Latest Kernel RPM Build" \
+            --notes "Automated rolling release for latest kernel RPM builds." \
             --prerelease \
             || true
           
           # Update the tag to handle rolling release
-          git tag -f kernel-latest
-          git push -f origin kernel-latest
+          git tag -f kernel-rpm-latest
+          git push -f origin kernel-rpm-latest
           
           # Upload assets to the existing release
-          gh release upload kernel-latest ./dist/*.rpm --clobber
+          gh release upload kernel-rpm-latest ./dist/*.rpm --clobber
