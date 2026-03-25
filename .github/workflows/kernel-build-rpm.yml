@@ -30,6 +30,7 @@ jobs:
             flex \
             openssl-devel \
             elfutils-libelf-devel \
+            elfutils-devel \
             bc \
             rsync \
             rpm-build \

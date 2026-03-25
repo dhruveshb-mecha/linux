@@ -28,6 +28,7 @@ jobs:
             flex \
             libssl-dev \
             libelf-dev \
+            libdw-dev \
             kmod \
             cpio \
             rsync \
