@@ -86,23 +86,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # The RPM build runs in a Fedora container, so be explicit about
-          # returning to the checked-out repository before touching tags.
-          cd "${GITHUB_WORKSPACE}"
+          # This job runs in a container where local git metadata may not be
+          # available after the RPM packaging step, so recreate the rolling
+          # release directly through the GitHub API using the workflow commit.
+          set -- ./dist/*.rpm
+          if [ ! -e "$1" ]; then
+            echo "No RPM artifacts found in ./dist"
+            exit 1
+          fi
 
-          git rev-parse --show-toplevel
-          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
-
-          # Ensure the release exists first
-          gh release create kernel-rpm-latest \
-            --title "Latest Kernel RPM Build" \
-            --notes "Automated rolling release for latest kernel RPM builds." \
-            --prerelease \
+          gh release delete kernel-rpm-latest --yes || true
+          gh api \
+            --method DELETE \
+            "repos/${GITHUB_REPOSITORY}/git/refs/tags/kernel-rpm-latest" \
             || true
 
-          # Update the tag to handle rolling release
-          git tag -f kernel-rpm-latest
-          git push -f origin kernel-rpm-latest
-
-          # Upload assets to the existing release
-          gh release upload kernel-rpm-latest ./dist/*.rpm --clobber
+          gh release create kernel-rpm-latest "$@" \
+            --target "${GITHUB_SHA}" \
+            --title "Latest Kernel RPM Build" \
+            --notes "Automated rolling release for latest kernel RPM builds." \
+            --prerelease
