@@ -1,0 +1,82 @@
+name: Build and Release Kernel (RPM)
+
+on:
+  push:
+    branches: [ "mecha-v7.1*"]
+  pull_request:
+    branches: ["mecha-v7.1*"]
+  workflow_dispatch:
+
+jobs:
+  build-rpm:
+    runs-on: ubuntu-24.04-arm
+
+    permissions:
+      contents: write
+
+    container:
+      image: fedora:44
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          dnf install -y \
+            gcc \
+            make \
+            bison \
+            flex \
+            openssl-devel \
+            elfutils-libelf-devel \
+            elfutils-devel \
+            bc \
+            rsync \
+            rpm-build \
+            git \
+            findutils \
+            hostname \
+            tar \
+            xz \
+            python3 \
+            perl \
+            openssl \
+            dwarves \
+            gh
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "GitHub Action"
+          git config --global --add safe.directory '*'
+
+      - name: Configure Kernel
+        run: |
+          cp arch/arm64/configs/mecha_v8_defconfig .config
+
+      - name: Build Kernel
+        run: |
+          make -j$(nproc)
+
+      - name: Packaging as RPM
+        run: |
+          make KBUILD_IMAGE=arch/arm64/boot/Image binrpm-pkg -j$(nproc)
+
+      - name: Consolidate Artifacts
+        if: always()
+        run: |
+          mkdir -p dist
+          find rpmbuild/RPMS -name "*.rpm" -exec cp {} dist/ \
+          ;
+          find rpmbuild/SRPMS -name "*.rpm" -exec cp {} dist/ \
+          ;
+
+      - name: Upload RPM Artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: kernel-packages-rpm
+          path: ./dist/*.rpm
