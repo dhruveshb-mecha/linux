@@ -23,54 +23,76 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
-          dnf install -y \
-            gcc \
-            make \
-            bison \
-            flex \
-            openssl-devel \
-            elfutils-libelf-devel \
-            elfutils-devel \
+          dnf -y install \
             bc \
-            rsync \
-            rpm-build \
-            git \
-            findutils \
-            hostname \
-            tar \
-            xz \
-            python3 \
-            perl \
-            openssl \
+            bindgen \
+            bison \
+            bzip2 \
             dwarves \
-            gh
+            elfutils-devel \
+            elfutils-libelf-devel \
+            findutils \
+            flex \
+            gcc \
+            gh \
+            git \
+            hostname \
+            make \
+            openssl \
+            openssl-devel \
+            perl \
+            python3-pyyaml \
+            rpm-build \
+            rpm-build-libs \
+            rpmdevtools \
+            rpm-sign \
+            rsync \
+            rust \
+            rustfmt \
+            rust-src \
+            tar \
+            xz
 
       - name: Configure Git
         run: |
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
+          git config --global user.email "dhruveshb@mechasystems.com"
+          git config --global user.name "Dhruvesh Baria"
           git config --global --add safe.directory '*'
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Configure Kernel
+      - name: Ensure Git repository is usable
         run: |
-          cp arch/arm64/configs/mecha_v8_defconfig .config
+          if ! git -C "$GITHUB_WORKSPACE" rev-parse --verify HEAD >/dev/null 2>&1; then
+            git -C "$GITHUB_WORKSPACE" init
+            git -C "$GITHUB_WORKSPACE" config user.email "dhruveshb@mechasystems.com"
+            git -C "$GITHUB_WORKSPACE" config user.name "Dhruvesh Baria"
+            git -C "$GITHUB_WORKSPACE" add .
+            git -C "$GITHUB_WORKSPACE" commit -m "ci-workflow-build" --no-gpg-sign || true
+          fi
 
-      - name: Build Kernel
+      - name: Build SRPM
         run: |
-          make -j$(nproc)
+          mkdir -p dist
+          make -f .copr/Makefile srpm outdir="$PWD/dist"
 
-      - name: Packaging as RPM
+      - name: Rebuild from SRPM
         run: |
-          make KBUILD_IMAGE=arch/arm64/boot/Image binrpm-pkg -j$(nproc)
+          srpm_path=$(find "$GITHUB_WORKSPACE/dist" -type f -name '*.src.rpm' | head -n 1)
+          if [ -z "$srpm_path" ]; then
+            echo "No source RPM found in dist"
+            exit 1
+          fi
+          rpmbuild --rebuild "$srpm_path"
+          find "$HOME/rpmbuild/RPMS" -type f -name '*.rpm' -exec cp {} "$GITHUB_WORKSPACE/dist/" \;
+          find "$HOME/rpmbuild/SRPMS" -type f -name '*.rpm' -exec cp {} "$GITHUB_WORKSPACE/dist/" \;
 
       - name: Consolidate Artifacts
         if: always()
         run: |
           mkdir -p dist
-          find rpmbuild/RPMS -name "*.rpm" -exec cp {} dist/ \;
-          find rpmbuild/SRPMS -name "*.rpm" -exec cp {} dist/ \;
+          find dist -maxdepth 1 -type f -name "*.src.rpm" -exec cp {} dist/ \;
 
       - name: Upload RPM Artifacts
         if: always()
