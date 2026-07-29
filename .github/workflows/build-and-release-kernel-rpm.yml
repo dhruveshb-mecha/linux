@@ -69,10 +69,8 @@ jobs:
         if: always()
         run: |
           mkdir -p dist
-          find rpmbuild/RPMS -name "*.rpm" -exec cp {} dist/ \
-          ;
-          find rpmbuild/SRPMS -name "*.rpm" -exec cp {} dist/ \
-          ;
+          find rpmbuild/RPMS -name "*.rpm" -exec cp {} dist/ \;
+          find rpmbuild/SRPMS -name "*.rpm" -exec cp {} dist/ \;
 
       - name: Upload RPM Artifacts
         if: always()
