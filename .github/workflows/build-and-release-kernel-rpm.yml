@@ -25,6 +25,10 @@ jobs:
       DIST: ".fc44"
       VERSION_ON_UPSTREAM: "0"
       MARKER: "HEAD"
+      # Defaults to ".test" if left unset. Empty here gives a clean
+      # "<build>.mecha<dist>" release; swap in a run/sha suffix if you want
+      # per-build NVRs instead.
+      DISTLOCALVERSION: ""
       # Keep the binary build scoped to the base kernel + modules: skip
       # perf/tools/doc/debuginfo/selftests and the kABI stablelist checks.
       WITHOUT_FLAGS: >-
@@ -33,17 +37,20 @@ jobs:
         --without kernel_abi_stablelists --without kabichk
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-
+      # fedora:44 ships without git. actions/checkout needs it present
+      # *before* it runs, or it silently falls back to a tarball download
+      # with no .git directory -- which breaks every git call in redhat/.
       - name: Install base build dependencies
         run: |
           dnf -y install \
             git make gcc flex bison bzip2 rpm-build \
             python3-pyyaml findutils diffutils gawk m4 \
             perl-interpreter tar xz rsync
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Configure git
         run: |
@@ -54,7 +61,7 @@ jobs:
       - name: Render kernel.spec
         run: |
           make DIST="$DIST" VERSION_ON_UPSTREAM="$VERSION_ON_UPSTREAM" MARKER="$MARKER" \
-            dist-spec
+            DISTLOCALVERSION="$DISTLOCALVERSION" dist-spec
 
       - name: Install kernel BuildRequires
         run: |
@@ -75,7 +82,7 @@ jobs:
           # across every arch/flavor -- those config fragments haven't been
           # updated for the NXP wifi driver yet. Remove this once fixed.
           make DIST="$DIST" VERSION_ON_UPSTREAM="$VERSION_ON_UPSTREAM" MARKER="$MARKER" \
-            NO_CONFIGCHECKS=1 dist-srpm
+            DISTLOCALVERSION="$DISTLOCALVERSION" NO_CONFIGCHECKS=1 dist-srpm
 
       - name: Rebuild binary RPMs from SRPM
         run: |
