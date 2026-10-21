@@ -32,10 +32,6 @@ jobs:
         --without perf --without libperf --without tools --without doc
         --without debuginfo --without debug --without selftests
         --without kernel_abi_stablelists --without kabichk
-      MECHA_PULP_USERNAME: ${{ secrets.MECHA_PULP_USERNAME }}
-      MECHA_PULP_PASSWORD: ${{ secrets.MECHA_PULP_PASSWORD }}
-      MECHA_PULP_API_URL: ${{ vars.MECHA_PULP_API_URL }}
-      MECHA_PULP_RPMS_REPOSITORY_NAME: ${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}
 
     steps:
       # fedora:44 ships without git. actions/checkout needs it present
@@ -110,49 +106,3 @@ jobs:
         with:
           name: kernel-packages-rpm
           path: dist/**/*.rpm
-
-      - name: Setup | Pulp CLI
-        run: |
-          pipx install --force "pulp-cli==0.39.3"
-          pipx inject pulp-cli pulp_rpm
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Configure Pulp CLI
-        run: |
-          set -euo pipefail
-          PULP_API_URL="$(printf '%s' "${MECHA_PULP_API_URL}" | tr -d '[:space:]')"
-          PULP_API_URL="${PULP_API_URL%/}"
-          if [ -z "$PULP_API_URL" ]; then
-            echo "MECHA_PULP_API_URL is empty after trimming whitespace"
-            exit 1
-          fi
-
-          pulp config create \
-            --username "$MECHA_PULP_USERNAME" \
-            --password "$MECHA_PULP_PASSWORD" \
-            --base-url "$PULP_API_URL" \
-            --overwrite
-
-      - name: Publish RPMs to Pulp
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-          rpms=(dist/**/*.rpm)
-          if [ "${#rpms[@]}" -eq 0 ]; then
-            echo "No RPMs found in dist/ to publish"
-            exit 1
-          fi
-
-          for rpm in "${rpms[@]}"; do
-            echo "[INFO] Uploading $rpm"
-            pulp rpm content upload --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME" --file="$rpm"
-          done
-
-          PUB_HREF=$(pulp rpm publication create \
-            --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME" | jq -r '.pulp_href')
-
-          pulp rpm distribution update \
-            --name="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
-            --base-path="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
-            --publication="$PUB_HREF"
